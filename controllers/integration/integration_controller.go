@@ -139,6 +139,7 @@ func (r *Reconciler) ReconcileHandler(adapter AdapterInterface) (ctrl.Result, er
 	operations := []ReconcileOperation{
 		adapter.EnsureApplicationSnapshotExists,
 		adapter.EnsureAllReleasesExist,
+		adapter.EnsureApplicationSnapshotEnvironmentBindingExist,
 	}
 
 	for _, operation := range operations {

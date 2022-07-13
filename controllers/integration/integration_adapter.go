@@ -137,6 +137,130 @@ func (a *Adapter) getAllApplicationSnapshots() (*[]appstudioshared.ApplicationSn
 	return &applicationSnapshots.Items, nil
 }
 
+func (a *Adapter) GetAllEnvironments() (*[]appstudioshared.Envirionment, error) {
+
+	environments := &[]appstudioshared.Envirionment{}
+	opts := []client.ListOption{
+		client.InNamespace(a.application.Namespace),
+	}
+	err := a.client.List(a.context, environments, opts...)
+	return environments, err
+}
+
+func (a *Adapter) findOneAvailabeEnvironment() (*appstudioshared.Envirionment, error) {
+	allEnvironments, err := a.getAllEnvironments()
+	if err != nil {
+		return nil, err
+	}
+	for _, environtment := range *allEnvironments {
+		if environtment.parentEnvironment == "" {
+			found := 1
+			for j, tag := range environment.tags {
+				if tag == "ephemeral" {
+					found = 0
+					break
+				}
+			}
+			if found == 1 {
+				return environment, nil
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (a *Adapter) findMatchingComponents() (*[]hasv1alpha1.Component, error) {
+	opts := []client.ListOption{
+		client.InNamespace(a.application.Namespace),
+		client.MatchingFields{"spec.application": a.application.Name},
+	}
+	err := a.client.List(a.context, components, opts...)
+
+	return components, err
+}
+
+func (a *Adapter) EnsureApplicationSnapshotEnvironmentBindingExist() (results.OperationResult, error) {
+	availableEnvironment, err := a.findOneAvailabeEnvironment()
+	if err != nil {
+		return results.RequeueWithError(err)
+	}
+	var applicationSnapshotEnvironmentBinding *gitopsv1alpha1.ApplicationSnapshotEnvironmentBinding
+
+	applicationSnapshot, err := a.findMatchingApplicationSnapshot()
+	if err != nil {
+		return results.RequeueWithError(err)
+	}
+	bindingName := a.application.Name + "-" + availableEnvironment.DisplayName + "-" + "binding"
+
+	components, err := a.findMatchingComponents()
+	if err != nil {
+		return results.RequeueWithError(err)
+	}
+
+	applicationSnapshotEnvironmentBinding, err := CreateApplicationSnapshotEnvironmentBinding(bindingName, a.application.Namespace,
+		a.application.Name, availableEnvironment.DisplayName,
+		applicationSnapshot, components)
+
+	if err != nil {
+		a.logger.Error(err, "Failed to create ApplicationSnapshotEnvironmentBinding",
+			"Application.Name", a.application.Name, "Application.Namespace", a.application.Namespace)
+		return results.RequeueOnErrorOrStop(a.updateStatus())
+	}
+
+	a.logger.Info("Created new ApplicationSnapshotEnvironmentBinding",
+		"Application.Name", a.application.Name,
+		"ApplicationSnapshot.Name", applicationSnapshot.Name,
+		"ApplicationSnapshot.Spec.Components", applicationSnapshot.Spec.Components)
+	return results.ContinueProcessing()
+}
+
+func (a *Adapter) CreateApplicationSnapshotEnvironmentBinding(bindingName string, namespace string, applicationName string, environmentName string, appSnapshot *appstudioshared.ApplicationSnapshot, components []appservice.Component) (*gitopsv1alpha1.ApplicationSnapshotEnvironmentBinding, error) {
+	bindingComponents := []appstudioshared.BindingComponent{}
+	for i, component := range components {
+		bindingComponents = append(bindingComponents, appstudioshared.BindingComponent{
+			Name: components[i].Spec.Name,
+			Configuration: appstudioshared.BindingComponentConfiguration{
+				Env: []appstudioshared.EnvVarPair{
+					{Name: components[i].Spec.Env.Name,
+						Value: components[i].Spec.Env.Value,
+					},
+				},
+				Replicas: components[i].Spec.Replica,
+			},
+		})
+	}
+	componentStatuses := []appstudioshared.ComponentStatus{}
+	for i, component := range components {
+		componentStatuses = append(componentStatuses, appstudioshared.ComponentStatus{
+			Name: components[i].Spec.Name,
+			GitOpsRepository: appstudioshared.BindingComponentGitOpsRepository{
+				URL:    components[i].Status.GitOps.RepositoryURL,
+				Branch: components[i].Status.GitOps.Branch,
+				Path:   components[i].Status.GitOps.Context,
+			},
+		})
+	}
+
+	applicationSnapshotEnvironmentBinding := &appstudioshared.ApplicationSnapshotEnvironmentBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: namespace,
+		},
+		Spec: appstudioshared.ApplicationSnapshotEnvironmentBindingSpec{
+			Application: applicationName,
+			Environment: environmentName,
+			Snapshot:    appSnapshot.Spec.Name,
+			Components:  bindingComponents,
+		},
+		Status: appstudioshared.ApplicationSnapshotEnvironmentBindingStatus{
+			Components: componentStatuses,
+		},
+	}
+
+	err := a.client.Create(a.context, applicationSnapshotEnvironmentBinding)
+	return applicationSnapshotEnvironmentBinding, err
+}
+
 // compareApplicationSnapshots compares two ApplicationSnapshots and returns boolean true if their images match exactly.
 func (a *Adapter) compareApplicationSnapshots(expectedApplicationSnapshot *appstudioshared.ApplicationSnapshot, foundApplicationSnapshot *appstudioshared.ApplicationSnapshot) bool {
 	snapshotsHaveSameNumberOfImages :=
