@@ -19,6 +19,7 @@ package snapshot
 import (
 	"context"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"time"
 
 	"github.com/go-logr/logr"
 	applicationapiv1alpha1 "github.com/redhat-appstudio/application-api/api/v1alpha1"
@@ -111,6 +112,20 @@ func (a *Adapter) EnsureAllIntegrationTestPipelinesExist() (results.OperationRes
 					"App name", a.application.Name,
 					"Snapshot name", updatedSnapshot.Name,
 					"Namespace", a.application.Namespace)
+				if helpers.HasLabel(updatedSnapshot, "buildPipelineRunFinishTime") && updatedSnapshot.Labels["buildPipelineRunFinishTime"] != "" {
+					buildPipelineRunFinishTime, err := time.Parse("2006-01-02.15_04_05", updatedSnapshot.Labels["buildPipelineRunFinishTime"])
+					if err != nil {
+						a.logger.Error(err, "Failed to parse buildPipelineFinishTime")
+					}
+					snapshotInProgressTime := time.Now()
+					snapshotDuration := snapshotInProgressTime.Sub(time.Time(buildPipelineRunFinishTime))
+					a.logger.Info("The response time to update the snapshot to Inprogress status is ",
+						"snapshotDuration.Seconds", snapshotDuration.Seconds(),
+						"IntegrationTestScenario.Name", integrationTestScenario.Name,
+						"App name", a.application.Name,
+						"Snapshot name", updatedSnapshot.Name,
+						"Namespace", a.application.Namespace)
+				}
 			}
 		}
 	}

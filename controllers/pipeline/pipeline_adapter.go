@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	applicationapiv1alpha1 "github.com/redhat-appstudio/application-api/api/v1alpha1"
@@ -380,6 +381,12 @@ func (a *Adapter) prepareSnapshotForPipelineRun(pipelineRun *tektonv1beta1.Pipel
 	}
 	snapshot.Labels[gitops.SnapshotTypeLabel] = gitops.SnapshotComponentType
 	snapshot.Labels[gitops.SnapshotComponentLabel] = a.component.Name
+
+	if pipelineRun.Status.CompletionTime != nil {
+		snapshot.Labels["buildPipelineRunFinishTime"] = pipelineRun.Status.CompletionTime.Time.Format("2006-01-02.15_04_05")
+	} else {
+		snapshot.Labels["buildPipelineRunFinishTime"] = time.Now().Format("2006-01-02.15_04_05")
+	}
 
 	// Copy PipelineRun PAC annotations/labels from Build to snapshot.
 	// Modify the prefix so the PaC controller won't react to PipelineRuns generated from the snapshot.
