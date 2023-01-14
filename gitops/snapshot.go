@@ -2,12 +2,15 @@ package gitops
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/prometheus"
 	applicationapiv1alpha1 "github.com/redhat-appstudio/application-api/api/v1alpha1"
 	"github.com/redhat-appstudio/integration-service/helpers"
 	"github.com/redhat-appstudio/integration-service/tekton"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	"time"
 )
 
 const (
@@ -84,6 +87,14 @@ const (
 var (
 	// SnapshotComponentLabel contains the name of the updated Snapshot component - it should match the pipeline label.
 	SnapshotComponentLabel = tekton.ComponentNameLabel
+
+	SnapshotRunningSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "snapshot_running_seconds",
+			Help:    "Snapshot durations from the moment the buildPipelineRun is completed/ snapshot resource was created til the snapshot is marked as in progress status",
+			Buckets: []float64{0.5, 1, 2, 3, 4, 5, 6, 7, 10, 15, 30},
+		},
+	)
 )
 
 // MarkSnapshotAsPassed updates the HACBS Test succeeded condition for the Snapshot to passed.
@@ -101,7 +112,20 @@ func MarkSnapshotAsPassed(adapterClient client.Client, ctx context.Context, snap
 	if err != nil {
 		return nil, err
 	}
+	//	snapshot.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+	//	go metrics.RegisterCompletedSnapshot(HACBSTestSuceededConditionPassed.String(), snapshot.Status.Type, snapshot.Status.Status,
+	//               snapshot.Status.StartTime, snapshot.Status.CompletionTime, false)
 	return snapshot, nil
+}
+
+func RegisterRunningSnapshot(buildPipelineFinishTime time.Time, inProgressTime *metav1.Time) {
+	SnapshotRunningSeconds.Observe(inProgressTime.Sub(buildPipelineFinishTime).Seconds())
+}
+
+func init() {
+	metrics.Registry.MustRegister(
+		SnapshotRunningSeconds,
+	)
 }
 
 // MarkSnapshotAsFailed updates the HACBS Test succeeded condition for the Snapshot to failed.
@@ -144,6 +168,12 @@ func MarkSnapshotIntegrationStatusAsInProgress(adapterClient client.Client, ctx 
 	err := adapterClient.Status().Patch(ctx, snapshot, patch)
 	if err != nil {
 		return nil, err
+	}
+	snapshotInProgressTime := &metav1.Time{Time: time.Now()}
+	if helpers.HasLabel(snapshot, "buildPipelineRunFinishTime") && snapshot.Labels["buildPipelineRunFinishTime"] != "" {
+		//buildPipelineRunFinishTime, _ := time.ParseInLocation("2006-01-02.00_00_00", snapshot.Labels["buildPipelineRunFinishTime"], time.Local)
+		buildPipelineRunFinishTime, _ := time.Parse("2006-01-02.00_00_00", snapshot.Labels["buildPipelineRunFinishTime"])
+		go RegisterRunningSnapshot(buildPipelineRunFinishTime, snapshotInProgressTime)
 	}
 	return snapshot, nil
 }
