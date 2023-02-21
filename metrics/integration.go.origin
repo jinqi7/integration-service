@@ -1,0 +1,32 @@
+package metrics
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
+)
+
+var (
+	SnapshotRunningSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "integration_snapshot_running_seconds",
+			Help:    "Snapshot durations from the moment the buildPipelineRun is completed/ snapshot resource was created til the snapshot is marked as in progress status",
+			Buckets: []float64{0.5, 1, 2, 3, 4, 5, 6, 7, 10, 15, 30},
+		},
+	)
+)
+
+func RegisterRunningSnapshot(buildPipelineEnteringTime metav1.Time, inProgressTime *metav1.Time) {
+	SnapshotRunningSeconds.Observe(inProgressTime.Sub(buildPipelineEnteringTime.Time).Seconds())
+}
+
+func RegisterNewSnapshot(creationTime metav1.Time, startTime *metav1.Time) {
+        SnapshotAttemptConcurrentTotal.Inc()
+        ReleaseAttemptRunningSeconds.Observe(startTime.Sub(creationTime.Time).Seconds())
+}
+
+func init() {
+	metrics.Registry.MustRegister(
+		SnapshotRunningSeconds,
+	)
+}

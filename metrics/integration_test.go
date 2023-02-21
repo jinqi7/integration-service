@@ -93,7 +93,7 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 			Expect(testutil.ToFloat64(SnapshotConcurrentTotal)).To(Equal(float64(len(inputSeconds))))
 		})
 		It("registers a new observation for 'snapshot_created_to_pipelinerun_started_seconds' with the elapsed time from the moment"+
-			"the snapshot is created to first integration pipelineRun is started.", func() {
+			"the snapshot is created to a integration pipelineRun is started.", func() {
 			// Defined buckets for SnapshotCreatedToPipelineRunStartedSeconds
 			timeBuckets := []string{"1", "5", "10", "30"}
 			data := []int{1, 2, 3, 4}
@@ -184,9 +184,11 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 	Context("When RegisterInvalidSnapshot", func() {
 		It("increments the 'SnapshotInvalidTotal' metric", func() {
 			for i := 0; i < 10; i++ {
+				RegisterNewSnapshot()
 				RegisterInvalidSnapshot("HACBSIntegrationStatus", "invalid")
 			}
 			Expect(testutil.ToFloat64(SnapshotInvalidTotal)).To(Equal(float64(10)))
+			Expect(testutil.ToFloat64(SnapshotConcurrentTotal)).To(Equal(0.0))
 		})
 
 		It("increments the 'SnapshotTotal' metric.", func() {
