@@ -38,6 +38,5 @@ $ IMG=quay.io/user/integration-service:my-tag make docker-push
 ```
 
 ### Running tests
-
 To test the code, simply run `make test`. This command will fetch all the required dependencies and test the code. The
 test coverage will be reported at the end, once all the tests have been executed.
