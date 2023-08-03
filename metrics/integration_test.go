@@ -33,7 +33,6 @@ import (
 var _ = Describe("Metrics Integration", Ordered, func() {
 	BeforeAll(func() {
 		metrics.Registry.Unregister(SnapshotCreatedToPipelineRunStartedSeconds)
-		metrics.Registry.Unregister(SnapshotConcurrentTotal)
 		metrics.Registry.Unregister(SnapshotDurationSeconds)
 	})
 
@@ -65,35 +64,24 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 					Buckets: []float64{1, 5, 10, 30},
 				},
 			)
-			SnapshotConcurrentTotal = prometheus.NewGauge(
-				prometheus.GaugeOpts{
-					Name: "snapshot_attempt_concurrent_requests",
-					Help: "Total number of concurrent snapshot attempts",
-				},
-			)
 		})
 
 		AfterAll(func() {
 			metrics.Registry.Unregister(SnapshotCreatedToPipelineRunStartedSeconds)
-			metrics.Registry.Unregister(SnapshotConcurrentTotal)
 		})
 
 		// Input seconds for duration of operations less or equal to the following buckets of 1, 5, 10 and 30 seconds
 		inputSeconds := []float64{1, 3, 8, 15}
 		elapsedSeconds := 0.0
 
-		It("increments the 'snapshot_attempt_concurrent_requests'.", func() {
+		It("registers a new observation for 'snapshot_created_to_pipelinerun_started_seconds' with the elapsed time from the moment"+
+			"the snapshot is created to first integration pipelineRun is started.", func() {
 			creationTime := metav1.Time{}
 			for _, seconds := range inputSeconds {
-				RegisterNewSnapshot()
 				startTime := metav1.NewTime(creationTime.Add(time.Second * time.Duration(seconds)))
 				elapsedSeconds += seconds
 				RegisterPipelineRunStarted(creationTime, &startTime)
 			}
-			Expect(testutil.ToFloat64(SnapshotConcurrentTotal)).To(Equal(float64(len(inputSeconds))))
-		})
-		It("registers a new observation for 'snapshot_created_to_pipelinerun_started_seconds' with the elapsed time from the moment"+
-			"the snapshot is created to first integration pipelineRun is started.", func() {
 			// Defined buckets for SnapshotCreatedToPipelineRunStartedSeconds
 			timeBuckets := []string{"1", "5", "10", "30"}
 			data := []int{1, 2, 3, 4}
@@ -101,6 +89,7 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 			Expect(testutil.CollectAndCompare(SnapshotCreatedToPipelineRunStartedSeconds, strings.NewReader(readerData))).To(Succeed())
 		})
 	})
+
 	Context("When RegisterCompletedSnapshot is called", func() {
 		BeforeAll(func() {
 			SnapshotCreatedToPipelineRunStartedSeconds = prometheus.NewHistogram(
@@ -110,6 +99,8 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 					Buckets: []float64{1, 5, 10, 30},
 				},
 			)
+
+			SnapshotConcurrentTotal.Reset()
 			SnapshotDurationSeconds = prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
 					Name:    "snapshot_attempt_duration_seconds",
@@ -117,13 +108,6 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 					Buckets: []float64{60, 600, 1800, 3600},
 				},
 				[]string{"type", "reason"},
-			)
-
-			SnapshotConcurrentTotal = prometheus.NewGauge(
-				prometheus.GaugeOpts{
-					Name: "snapshot_attempt_concurrent_requests",
-					Help: "Total number of concurrent snapshot attempts",
-				},
 			)
 			SnapshotTotal = prometheus.NewCounterVec(
 				prometheus.CounterOpts{
@@ -133,13 +117,12 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 				[]string{"type", "reason"},
 			)
 
-			//metrics.Registry.MustRegister(SnapshotCreatedToPipelineRunStartedSeconds, SnapshotDurationSeconds, SnapshotConcurrentTotal, SnapshotTotal)
 		})
 
 		AfterAll(func() {
 			metrics.Registry.Unregister(SnapshotCreatedToPipelineRunStartedSeconds)
 			metrics.Registry.Unregister(SnapshotDurationSeconds)
-			metrics.Registry.Unregister(SnapshotConcurrentTotal)
+			SnapshotConcurrentTotal.Reset()
 			metrics.Registry.Unregister(SnapshotTotal)
 		})
 
@@ -194,6 +177,18 @@ var _ = Describe("Metrics Integration", Ordered, func() {
 			readerData := createCounterReader(SnapshotTotalHeader, labels, true, 10.0)
 			Expect(testutil.CollectAndCompare(SnapshotTotal.WithLabelValues("AppStudioIntegrationStatus", "invalid"),
 				strings.NewReader(readerData))).To(Succeed())
+		})
+	})
+
+	Context("when RegisterNewSnapshot is called", func() {
+		BeforeEach(func() {
+			SnapshotConcurrentTotal.Reset()
+		})
+
+		It("increments SnapshotConcurrentTotal", func() {
+			Expect(testutil.ToFloat64(SnapshotConcurrentTotal.WithLabelValues())).To(Equal(float64(0)))
+			RegisterNewSnapshot()
+			Expect(testutil.ToFloat64(SnapshotConcurrentTotal.WithLabelValues())).To(Equal(float64(1)))
 		})
 	})
 })

@@ -136,8 +136,10 @@ func MarkSnapshotAsPassed(adapterClient client.Client, ctx context.Context, snap
 		return nil, err
 	}
 
-	snapshotCompletionTime := &metav1.Time{Time: time.Now()}
-	go metrics.RegisterCompletedSnapshot(condition.Type, condition.Reason, snapshot.GetCreationTimestamp(), snapshotCompletionTime)
+	if !IsSnapshotValid(snapshot) && !HaveAppStudioTestsFailed(snapshot) && !HaveAppStudioTestsSucceeded(snapshot) {
+		snapshotCompletionTime := &metav1.Time{Time: time.Now()}
+		go metrics.RegisterCompletedSnapshot(condition.Type, condition.Reason, snapshot.GetCreationTimestamp(), snapshotCompletionTime)
+	}
 	return snapshot, nil
 }
 
@@ -158,8 +160,10 @@ func MarkSnapshotAsFailed(adapterClient client.Client, ctx context.Context, snap
 		return nil, err
 	}
 
-	snapshotCompletionTime := &metav1.Time{Time: time.Now()}
-	go metrics.RegisterCompletedSnapshot(condition.Type, condition.Reason, snapshot.GetCreationTimestamp(), snapshotCompletionTime)
+	if !IsSnapshotValid(snapshot) && !HaveAppStudioTestsFailed(snapshot) && !HaveAppStudioTestsSucceeded(snapshot) {
+		snapshotCompletionTime := &metav1.Time{Time: time.Now()}
+		go metrics.RegisterCompletedSnapshot(condition.Type, condition.Reason, snapshot.GetCreationTimestamp(), snapshotCompletionTime)
+	}
 	return snapshot, nil
 }
 
@@ -172,7 +176,9 @@ func SetSnapshotIntegrationStatusAsInvalid(snapshot *applicationapiv1alpha1.Snap
 		Message: message,
 	}
 	meta.SetStatusCondition(&snapshot.Status.Conditions, condition)
-	go metrics.RegisterInvalidSnapshot(AppStudioIntegrationStatusCondition, AppStudioIntegrationStatusInvalid)
+	if !IsSnapshotValid(snapshot) && !HaveAppStudioTestsFailed(snapshot) && !HaveAppStudioTestsSucceeded(snapshot) {
+		go metrics.RegisterInvalidSnapshot(AppStudioIntegrationStatusCondition, AppStudioIntegrationStatusInvalid)
+	}
 }
 
 // SetSnapshotIntegrationStatusAsError sets the AppStudio integration status condition for the Snapshot to error.
@@ -281,7 +287,15 @@ func HaveAppStudioTestsFinished(snapshot *applicationapiv1alpha1.Snapshot) bool 
 	return statusCondition != nil && statusCondition.Status != metav1.ConditionUnknown
 }
 
-// HaveAppStudioTestsSucceeded checks if the AppStudio tests have finished by checking if the AppStudio Test Succeeded condition is set.
+// HaveAppStudioTestsFailed checks if the AppStudio tests have failed by checking if the AppStudio Test Succeeded condition is set.
+func HaveAppStudioTestsFailed(snapshot *applicationapiv1alpha1.Snapshot) bool {
+	if meta.FindStatusCondition(snapshot.Status.Conditions, AppStudioTestSuceededCondition) == nil {
+		return meta.IsStatusConditionTrue(snapshot.Status.Conditions, LegacyTestSuceededCondition)
+	}
+	return meta.IsStatusConditionFalse(snapshot.Status.Conditions, AppStudioTestSuceededCondition)
+}
+
+// HaveAppStudioTestsSucceeded checks if the AppStudio tests have Succeeded by checking if the AppStudio Test Succeeded condition is set.
 func HaveAppStudioTestsSucceeded(snapshot *applicationapiv1alpha1.Snapshot) bool {
 	if meta.FindStatusCondition(snapshot.Status.Conditions, AppStudioTestSuceededCondition) == nil {
 		return meta.IsStatusConditionTrue(snapshot.Status.Conditions, LegacyTestSuceededCondition)
