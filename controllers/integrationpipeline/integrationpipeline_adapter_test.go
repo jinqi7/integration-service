@@ -177,30 +177,6 @@ var _ = Describe("Pipeline Adapter", Ordered, func() {
 		}
 		Expect(k8sClient.Create(ctx, hasComp2)).Should(Succeed())
 
-		hasSnapshot = &applicationapiv1alpha1.Snapshot{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "snapshot-sample",
-				Namespace: "default",
-				Labels: map[string]string{
-					gitops.SnapshotTypeLabel:      "component",
-					gitops.SnapshotComponentLabel: hasComp.Name,
-				},
-				Annotations: map[string]string{
-					gitops.PipelineAsCodeInstallationIDAnnotation: "123",
-				},
-			},
-			Spec: applicationapiv1alpha1.SnapshotSpec{
-				Application: hasApp.Name,
-				Components: []applicationapiv1alpha1.SnapshotComponent{
-					{
-						Name:           hasComp.Name,
-						ContainerImage: SampleImage,
-					},
-				},
-			},
-		}
-		Expect(k8sClient.Create(ctx, hasSnapshot)).Should(Succeed())
-
 		integrationTestScenario = &v1beta1.IntegrationTestScenario{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "example-pass",
@@ -312,6 +288,30 @@ var _ = Describe("Pipeline Adapter", Ordered, func() {
 	})
 
 	BeforeEach(func() {
+		hasSnapshot = &applicationapiv1alpha1.Snapshot{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "snapshot-sample",
+				Namespace: "default",
+				Labels: map[string]string{
+					gitops.SnapshotTypeLabel:      "component",
+					gitops.SnapshotComponentLabel: hasComp.Name,
+				},
+				Annotations: map[string]string{
+					gitops.PipelineAsCodeInstallationIDAnnotation: "123",
+				},
+			},
+			Spec: applicationapiv1alpha1.SnapshotSpec{
+				Application: hasApp.Name,
+				Components: []applicationapiv1alpha1.SnapshotComponent{
+					{
+						Name:           hasComp.Name,
+						ContainerImage: SampleImage,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, hasSnapshot)).Should(Succeed())
+
 		integrationPipelineRunComponent = &tektonv1beta1.PipelineRun{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pipelinerun-component-sample",
@@ -365,7 +365,9 @@ var _ = Describe("Pipeline Adapter", Ordered, func() {
 	})
 
 	AfterEach(func() {
-		err := k8sClient.Delete(ctx, integrationPipelineRunComponent)
+		err := k8sClient.Delete(ctx, hasSnapshot)
+		Expect(err == nil || k8serrors.IsNotFound(err)).To(BeTrue())
+		err = k8sClient.Delete(ctx, integrationPipelineRunComponent)
 		Expect(err == nil || k8serrors.IsNotFound(err)).To(BeTrue())
 	})
 
