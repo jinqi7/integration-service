@@ -30,11 +30,12 @@ var (
 		},
 	)
 
-	SnapshotConcurrentTotal = prometheus.NewGauge(
+	SnapshotConcurrentTotal = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "snapshot_attempt_concurrent_requests",
 			Help: "Total number of concurrent snapshot attempts",
 		},
+		[]string{},
 	)
 
 	SnapshotDurationSeconds = prometheus.NewHistogramVec(
@@ -69,13 +70,13 @@ func RegisterCompletedSnapshot(conditiontype, reason string, startTime metav1.Ti
 		"reason": reason,
 	}
 
-	SnapshotConcurrentTotal.Sub(1)
+	SnapshotConcurrentTotal.WithLabelValues().Sub(1)
 	SnapshotDurationSeconds.With(labels).Observe(completionTime.Sub(startTime.Time).Seconds())
 	SnapshotTotal.With(labels).Inc()
 }
 
 func RegisterInvalidSnapshot(conditiontype, reason string) {
-	SnapshotConcurrentTotal.Dec()
+	SnapshotConcurrentTotal.WithLabelValues().Dec()
 	SnapshotInvalidTotal.With(prometheus.Labels{"reason": reason}).Inc()
 	SnapshotTotal.With(prometheus.Labels{
 		"type":   conditiontype,
@@ -92,7 +93,7 @@ func RegisterIntegrationResponse(buildPipelineFinishTime metav1.Time, inProgress
 }
 
 func RegisterNewSnapshot() {
-	SnapshotConcurrentTotal.Inc()
+	SnapshotConcurrentTotal.WithLabelValues().Inc()
 }
 
 func RegisterNewIntegrationPipelineRun(snapshotCreatedTime metav1.Time, pipelineRunStartTime *metav1.Time) {

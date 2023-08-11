@@ -117,6 +117,7 @@ var _ = Describe("Gitops functions for managing Snapshots", Ordered, func() {
 		Expect(updatedSnapshot).NotTo(BeNil())
 		Expect(updatedSnapshot.Status.Conditions).NotTo(BeNil())
 		Expect(meta.IsStatusConditionTrue(updatedSnapshot.Status.Conditions, gitops.AppStudioTestSuceededCondition)).To(BeTrue())
+		Expect(gitops.IsSnapshotStatusConditionSet(hasSnapshot, gitops.AppStudioTestSuceededCondition, metav1.ConditionTrue, "")).To(BeTrue())
 	})
 
 	It("ensures the Snapshots status can be marked as failed", func() {
@@ -125,6 +126,7 @@ var _ = Describe("Gitops functions for managing Snapshots", Ordered, func() {
 		Expect(updatedSnapshot).NotTo(BeNil())
 		Expect(updatedSnapshot.Status.Conditions).NotTo(BeNil())
 		Expect(meta.IsStatusConditionTrue(updatedSnapshot.Status.Conditions, gitops.AppStudioTestSuceededCondition)).To(BeFalse())
+		Expect(gitops.IsSnapshotStatusConditionSet(hasSnapshot, gitops.AppStudioTestSuceededCondition, metav1.ConditionFalse, "")).To(BeTrue())
 	})
 
 	It("ensures the Snapshots status can be marked as error", func() {
@@ -190,6 +192,8 @@ var _ = Describe("Gitops functions for managing Snapshots", Ordered, func() {
 		Expect(hasSnapshot).NotTo(BeNil())
 		Expect(hasSnapshot.Status.Conditions).NotTo(BeNil())
 		Expect(gitops.IsSnapshotValid(hasSnapshot)).To(BeFalse())
+		Expect(gitops.IsSnapshotStatusConditionSet(hasSnapshot, gitops.AppStudioIntegrationStatusCondition,
+			metav1.ConditionFalse, gitops.AppStudioIntegrationStatusInvalid)).To(BeTrue())
 	})
 
 	It("ensures the Snapshots status can be detected to be valid", func() {
