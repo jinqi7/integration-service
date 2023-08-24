@@ -338,8 +338,8 @@ func (a *Adapter) createCompositeSnapshotsIfConflictExists(application *applicat
 	}
 
 	// Copy PAC annotations/labels from testedSnapshot to compositeSnapshot.
-	h.CopyLabelsByPrefix(&testedSnapshot.ObjectMeta, &compositeSnapshot.ObjectMeta, gitops.PipelinesAsCodePrefix, gitops.PipelinesAsCodePrefix)
-	h.CopyAnnotationsByPrefix(&testedSnapshot.ObjectMeta, &compositeSnapshot.ObjectMeta, gitops.PipelinesAsCodePrefix, gitops.PipelinesAsCodePrefix)
+	h.CopyLabelsByPrefix(&testedSnapshot.ObjectMeta, &compositeSnapshot.ObjectMeta, gitops.PipelinesAsCodePrefix)
+	h.CopyAnnotationsByPrefix(&testedSnapshot.ObjectMeta, &compositeSnapshot.ObjectMeta, gitops.PipelinesAsCodePrefix)
 
 	// Mark tested snapshot as failed and create the new composite snapshot if it doesn't exist already
 	if !gitops.CompareSnapshots(compositeSnapshot, testedSnapshot) {

@@ -163,8 +163,8 @@ func (a *Adapter) createIntegrationPipelineRunWithEnvironment(application *appli
 		WithEnvironmentAndDeploymentTarget(deploymentTarget, environment.Name).
 		AsPipelineRun()
 	// copy PipelineRun PAC annotations/labels from snapshot to integration test PipelineRuns
-	h.CopyAnnotationsByPrefix(&snapshot.ObjectMeta, &pipelineRun.ObjectMeta, gitops.PipelinesAsCodePrefix, gitops.PipelinesAsCodePrefix)
-	h.CopyLabelsByPrefix(&snapshot.ObjectMeta, &pipelineRun.ObjectMeta, gitops.PipelinesAsCodePrefix, gitops.PipelinesAsCodePrefix)
+	h.CopyAnnotationsByPrefix(&snapshot.ObjectMeta, &pipelineRun.ObjectMeta, gitops.PipelinesAsCodePrefix)
+	h.CopyLabelsByPrefix(&snapshot.ObjectMeta, &pipelineRun.ObjectMeta, gitops.PipelinesAsCodePrefix)
 	err = ctrl.SetControllerReference(snapshot, pipelineRun, a.client.Scheme())
 	if err != nil {
 		return nil, err

@@ -30,6 +30,7 @@ import (
 	"github.com/redhat-appstudio/integration-service/metrics"
 	"github.com/redhat-appstudio/integration-service/tekton"
 	"github.com/redhat-appstudio/operator-toolkit/controller"
+	"github.com/redhat-appstudio/operator-toolkit/metadata"
 	tektonv1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -204,12 +205,12 @@ func (a *Adapter) prepareSnapshotForPipelineRun(pipelineRun *tektonv1beta1.Pipel
 
 	// Copy PipelineRun PAC annotations/labels from Build to snapshot.
 	// Modify the prefix so the PaC controller won't react to PipelineRuns generated from the snapshot.
-	h.CopyLabelsByPrefix(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, "pipelinesascode.tekton.dev", gitops.PipelinesAsCodePrefix)
-	h.CopyAnnotationsByPrefix(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, "pipelinesascode.tekton.dev", gitops.PipelinesAsCodePrefix)
+	h.CopyLabelsWithPrefixReplacement(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, "pipelinesascode.tekton.dev", gitops.PipelinesAsCodePrefix)
+	h.CopyAnnotationsWithPrefixReplacement(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, "pipelinesascode.tekton.dev", gitops.PipelinesAsCodePrefix)
 
 	// Copy build labels and annotations prefixed with build.appstudio from Build to Snapshot.
-	h.CopyLabelsByPrefix(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, gitops.BuildPipelineRunPrefix, gitops.BuildPipelineRunPrefix)
-	h.CopyAnnotationsByPrefix(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, gitops.BuildPipelineRunPrefix, gitops.BuildPipelineRunPrefix)
+	h.CopyLabelsByPrefix(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, gitops.BuildPipelineRunPrefix)
+	h.CopyAnnotationsByPrefix(&pipelineRun.ObjectMeta, &snapshot.ObjectMeta, gitops.BuildPipelineRunPrefix)
 
 	return snapshot, nil
 }
@@ -262,7 +263,9 @@ func (a *Adapter) getSucceededBuildPipelineRunsForComponent(component *applicati
 
 func (a *Adapter) annotateBuildPipelineRunWithSnapshot(pipelineRun *tektonv1beta1.PipelineRun, snapshot *applicationapiv1alpha1.Snapshot) (*tektonv1beta1.PipelineRun, error) {
 	patch := client.MergeFrom(pipelineRun.DeepCopy())
-	h.AddAnnotation(&pipelineRun.ObjectMeta, tekton.SnapshotNameLabel, snapshot.Name)
+	temp_annotations := map[string]string{}
+	temp_annotations[tekton.SnapshotNameLabel] = snapshot.Name
+	metadata.AddAnnotations(&pipelineRun.ObjectMeta, temp_annotations)
 	err := a.client.Patch(a.context, pipelineRun, patch)
 	if err != nil {
 		return pipelineRun, err

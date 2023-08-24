@@ -699,9 +699,12 @@ var _ = Describe("Snapshot Adapter", Ordered, func() {
 			components := []applicationapiv1alpha1.Component{
 				*hasComp,
 			}
-			snapshotEnvironmentBinding, err := adapter.createSnapshotEnvironmentBindingForSnapshot(adapter.application, env, hasSnapshot, &components)
+			temp_labels := map[string]string{}
+			temp_labels[gitops.SnapshotTestScenarioLabel] = integrationTestScenario.Name
+			snapshotEnvironmentBinding, err := adapter.createSnapshotEnvironmentBindingForSnapshot(adapter.application, env, hasSnapshot, &components, temp_labels)
 			Expect(err).To(BeNil())
 			Expect(snapshotEnvironmentBinding).NotTo(BeNil())
+			Expect(snapshotEnvironmentBinding.Labels[gitops.SnapshotTestScenarioLabel]).To(Equal(integrationTestScenario.Name))
 
 			// update snapshot environment with new component
 			componentsUpdate := []applicationapiv1alpha1.Component{
@@ -713,7 +716,8 @@ var _ = Describe("Snapshot Adapter", Ordered, func() {
 			Expect(updatedSnapshotEnvironmentBinding).NotTo(BeNil())
 			Expect(len(updatedSnapshotEnvironmentBinding.Spec.Components) == 1)
 			Expect(updatedSnapshotEnvironmentBinding.Spec.Components[0].Name == secondComp.Spec.ComponentName)
-
+			err = k8sClient.Delete(ctx, snapshotEnvironmentBinding)
+			Expect(err == nil || errors.IsNotFound(err)).To(BeTrue())
 		})
 
 		It("ensures the ephemeral copy Environment are created for IntegrationTestScenario", func() {
